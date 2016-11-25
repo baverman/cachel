@@ -29,8 +29,8 @@ formatter = Formatter()
 
 
 def gen_expire(expire, spread=10):
-    a = expire - expire / spread
-    b = expire + expire / spread
+    a = expire - expire // spread
+    b = expire + expire // spread
     return randint(a, b)
 
 
@@ -90,7 +90,10 @@ def make_cache(cache, default_ttl=600, default_fmt='msgpack'):
         def __call__(tpl, ttl=default_ttl, fmt=default_fmt):
             def decorator(func):
                 keyfunc = make_key_func(tpl, func)
-                loads, dumps = SERIALIZERS[fmt]
+                try:
+                    loads, dumps = SERIALIZERS[fmt]
+                except KeyError:
+                    raise Exception('Unknown serializer: {}'.format(fmt))
                 expire = gen_expire(ttl)
 
                 class Cache(object):
