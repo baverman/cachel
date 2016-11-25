@@ -56,18 +56,33 @@ def make_key_func(tpl, func, *head):
     fd = func.__defaults__ or ()
     defaults = {arg: value for arg, value in zip(args[-len(fd):], fd)}
 
-    context = {'tpl': tpl}
     signature = []
     for arg in args:
         if arg in defaults:
             signature.append('{0}=default_{0}'.format(arg))
-            context['default_' + arg] = defaults[arg]
         else:
             signature.append(arg)
 
+    targs = []
+    template = []
+    idx = 0
+    for sep, name, fmt, _ in fields:
+        if sep:
+            template.append(sep)
+
+        if name is not None:
+            if name:
+                i = args.index(name)
+                targs.append(name)
+            else:
+                i = idx
+                idx += 1
+                targs.append(args[i])
+            template.append('{{{}:{}}}'.format(i, fmt))
+
     signature = ', '.join(signature)
-    return eval('lambda {}: tpl.format({}, **locals())'.format(
-        signature, ', '.join(args)), context)
+    return eval('lambda {}: {}.format({})'.format(
+        signature, repr(''.join(template)), ', '.join(targs)))
 
 
 def make_cache(cache, default_ttl=600, default_fmt='msgpack'):
