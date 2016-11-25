@@ -59,7 +59,7 @@ def make_key_func(tpl, func, *head):
     signature = []
     for arg in args:
         if arg in defaults:
-            signature.append('{0}=default_{0}'.format(arg))
+            signature.append('{}={}'.format(arg, repr(defaults[arg])))
         else:
             signature.append(arg)
 
