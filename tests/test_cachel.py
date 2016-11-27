@@ -60,12 +60,12 @@ def test_make_cache():
     @cache('user:{}')
     def get_user(user_id):
         called[0] += 1
-        return 'user-{}'.format(user_id)
+        return u'user-{}'.format(user_id)
 
     result = get_user(10)
     assert result == 'user-10'
     assert called == [1]
-    assert cache._cache.cache['user:10'] == (b'\xc4\x07user-10', 42)
+    assert cache._cache.cache['user:10'] == (b'\xa7user-10', 42)
 
     result = get_user(10)
     assert result == 'user-10'
@@ -98,20 +98,20 @@ def test_make_cache_objects():
     @cache.objects('user:{}')
     def get_users(ids):
         called[0] += 1
-        return {r: 'user-{}'.format(r) for r in ids}
+        return {r: u'user-{}'.format(r) for r in ids}
 
     result = get_users([1, 2])
     assert result == {1: 'user-1', 2: 'user-2'}
     assert called == [1]
-    assert cache._cache.cache == {'user:1': (b'\xc4\x06user-1', 42),
-                                  'user:2': (b'\xc4\x06user-2', 42)}
+    assert cache._cache.cache == {'user:1': (b'\xa6user-1', 42),
+                                  'user:2': (b'\xa6user-2', 42)}
 
     result = get_users([1, 2])
     assert result == {1: 'user-1', 2: 'user-2'}
     assert called == [1]
 
     get_users.invalidate([1])
-    assert cache._cache.cache == {'user:2': (b'\xc4\x06user-2', 42)}
+    assert cache._cache.cache == {'user:2': (b'\xa6user-2', 42)}
 
     result = get_users(set((1, 2)))
     assert result == {1: 'user-1', 2: 'user-2'}

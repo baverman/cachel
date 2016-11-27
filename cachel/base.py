@@ -11,6 +11,8 @@ except ImportError:  # pragma: no cover py2
 
 import msgpack
 
+from .compat import iteritems, listitems
+
 __all__ = ['SERIALIZERS', 'make_key_func', 'make_cache', 'NullCache', 'BaseCache',
            'wrap_in', 'wrap_dict_value_in']
 
@@ -163,7 +165,7 @@ def make_cache(cache, ttl=600, fmt='msgpack', fuzzy_ttl=True):
                         if ids_to_fetch:
                             fresult = func(ids_to_fetch, *args, **kwargs)
                             if fresult:
-                                to_cache_pairs = list(fresult.items())
+                                to_cache_pairs = listitems(fresult)
                                 to_cache_ids, to_cache_values = zip(*to_cache_pairs)
                                 cache.mset(zip(keyfunc(to_cache_ids, *args, **kwargs),
                                                [dumps(r) for r in to_cache_values]), expire)
@@ -216,6 +218,6 @@ def wrap_dict_value_in(wrapper):
         @wraps(func)
         def inner(*args, **kwargs):
             result = func(*args, **kwargs)
-            return {k: wrapper(v) for k, v in result.iteritems()}
+            return {k: wrapper(v) for k, v in iteritems(result)}
         return inner
     return decorator
