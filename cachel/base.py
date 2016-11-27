@@ -184,6 +184,15 @@ def make_cache(cache, ttl=600, fmt='msgpack', fuzzy_ttl=True):
 
 
 class BaseCache(object):
+    def set(self, key, value, ttl):  # pragma: no cover
+        raise NotImplementedError()
+
+    def get(self, key):  # pragma: no cover
+        raise NotImplementedError()
+
+    def delete(self, key):  # pragma: no cover
+        raise NotImplementedError()
+
     def mget(self, keys):
         return [self.get(k) for k in keys]
 
@@ -196,7 +205,7 @@ class BaseCache(object):
             self.delete(k)
 
 
-class NullCache(object):
+class NullCache(BaseCache):
     def set(self, key, value, ttl): pass
 
     def get(self, key): pass
