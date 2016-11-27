@@ -3,11 +3,13 @@ from string import Formatter
 from random import randint
 from inspect import CO_VARARGS, CO_VARKEYWORDS
 
+__all__ = ['SERIALIZERS', 'make_key_func', 'make_cache', 'NullCache']
+
 import json
 import msgpack
 try:
     import cPickle as pickle
-except ImportError:
+except ImportError:  # pragma: no cover py2
     import pickle
 
 SERIALIZERS = {
@@ -22,7 +24,7 @@ try:
     SERIALIZERS['ujson'] = partial(ujson.dumps, ensure_ascii=False), ujson.loads
     SERIALIZERS['slow_json'] = SERIALIZERS['json']
     SERIALIZERS['json'] = SERIALIZERS['ujson']
-except ImportError:
+except ImportError: # pragma: no cover
     pass
 
 formatter = Formatter()
@@ -85,16 +87,25 @@ def make_key_func(tpl, func, *head):
         signature, repr(''.join(template)), ', '.join(targs)))
 
 
-def make_cache(cache, default_ttl=600, default_fmt='msgpack'):
+def make_cache(cache, ttl=600, fmt='msgpack', fuzzy_ttl=True):
+    default_ttl = ttl
+    default_fmt = fmt
+    default_fuzzy_ttl = fuzzy_ttl
+
     class Cacher(object):
-        def __call__(tpl, ttl=default_ttl, fmt=default_fmt):
+        _cache = cache
+        def __call__(self, tpl, ttl=default_ttl, fmt=default_fmt, fuzzy_ttl=default_fuzzy_ttl):
             def decorator(func):
                 keyfunc = make_key_func(tpl, func)
                 try:
-                    loads, dumps = SERIALIZERS[fmt]
+                    dumps, loads = SERIALIZERS[fmt]
                 except KeyError:
                     raise Exception('Unknown serializer: {}'.format(fmt))
-                expire = gen_expire(ttl)
+
+                if fuzzy_ttl:  # pragma: no cover
+                    expire = gen_expire(ttl)
+                else:
+                    expire = ttl
 
                 class Cache(object):
                     def __call__(self, *args, **kwargs):
@@ -120,7 +131,7 @@ def make_cache(cache, default_ttl=600, default_fmt='msgpack'):
                 return wraps(func)(Cache())
             return decorator
 
-        def objects(key, ttl=default_ttl, fmt=default_fmt):
+        def objects(self, key, ttl=default_ttl, fmt=default_fmt):
             pass
 
     return Cacher()
