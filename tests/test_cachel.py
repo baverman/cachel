@@ -1,10 +1,11 @@
 import pytest
 
-from cachel import make_key_func, make_cache
+from cachel import (make_key_func, make_cache, BaseCache,
+                    wrap_in, wrap_dict_value_in)
 from cachel.base import gen_expire
 
 
-class Cache(object):
+class Cache(BaseCache):
     def __init__(self):
         self.cache = {}
 
@@ -44,8 +45,8 @@ def test_make_key_func():
     f = make_key_func('{foo}-{boo}', lambda foo, boo: None)
     assert f(10, 20) == '10-20'
 
-    f = make_key_func('{id}', lambda foo: None, 'id')
-    assert f(20) == '20'
+    f = make_key_func('{id}', lambda foo: None, True)
+    assert f([20, 30]) == ['20', '30']
 
 
 def test_gen_expire():
@@ -88,3 +89,46 @@ def test_make_cache_for_unknown_serializer():
         c('boo')(lambda boo: None)
 
     assert 'Unknown serializer' in str(ei.value)
+
+
+def test_make_cache_objects():
+    cache = make_cache(Cache(), ttl=42, fuzzy_ttl=False)
+    called = [0]
+
+    @cache.objects('user:{}')
+    def get_users(ids):
+        called[0] += 1
+        return {r: 'user-{}'.format(r) for r in ids}
+
+    result = get_users([1, 2])
+    assert result == {1: 'user-1', 2: 'user-2'}
+    assert called == [1]
+    assert cache._cache.cache == {'user:1': (b'\xc4\x06user-1', 42),
+                                  'user:2': (b'\xc4\x06user-2', 42)}
+
+    result = get_users([1, 2])
+    assert result == {1: 'user-1', 2: 'user-2'}
+    assert called == [1]
+
+    get_users.invalidate([1])
+    assert cache._cache.cache == {'user:2': (b'\xc4\x06user-2', 42)}
+
+    result = get_users(set((1, 2)))
+    assert result == {1: 'user-1', 2: 'user-2'}
+    assert called == [2]
+
+
+def test_wrap_in():
+    @wrap_in(int)
+    def boo():
+        return '10'
+
+    assert boo() == 10
+
+
+def test_wrap_dict_value_in():
+    @wrap_dict_value_in(int)
+    def boo():
+        return {'key': '10'}
+
+    assert boo() == {'key': 10}
