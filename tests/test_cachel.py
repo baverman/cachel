@@ -65,7 +65,7 @@ def test_make_cache():
     result = get_user(10)
     assert result == 'user-10'
     assert called == [1]
-    assert cache._cache.cache['user:10'] == (b'\xa7user-10', 42)
+    assert get_user.cache.cache['user:10'] == (b'\xa7user-10', 42)
 
     result = get_user(10)
     assert result == 'user-10'
@@ -103,7 +103,7 @@ def test_make_cache_objects():
     result = get_users([1, 2])
     assert result == {1: 'user-1', 2: 'user-2'}
     assert called == [1]
-    assert cache._cache.cache == {'user:1': (b'\xa6user-1', 42),
+    assert get_users.cache.cache == {'user:1': (b'\xa6user-1', 42),
                                   'user:2': (b'\xa6user-2', 42)}
 
     result = get_users([1, 2])
@@ -111,7 +111,7 @@ def test_make_cache_objects():
     assert called == [1]
 
     get_users.invalidate([1])
-    assert cache._cache.cache == {'user:2': (b'\xa6user-2', 42)}
+    assert get_users.cache.cache == {'user:2': (b'\xa6user-2', 42)}
 
     result = get_users(set((1, 2)))
     assert result == {1: 'user-1', 2: 'user-2'}

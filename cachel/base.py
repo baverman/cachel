@@ -110,77 +110,88 @@ def make_key_func(tpl, func, multi=False):
             signature, repr(ftpl), ', '.join(targs)))
 
 
-def make_cache(cache, ttl=600, fmt='msgpack', fuzzy_ttl=True):
-    class Cacher(object):
-        _cache = cache
+class CacheWrapper(object):
+    def __init__(self, func, cache, keyfunc, serializer, ttl):
+        self.func = func
+        self.cache = cache
+        self.keyfunc = keyfunc
+        self.dumps, self.loads = serializer
+        self.ttl = ttl
 
-        def __call__(self, tpl, ttl=ttl, fmt=fmt, fuzzy_ttl=fuzzy_ttl):
-            def decorator(func):
-                keyfunc = make_key_func(tpl, func)
-                dumps, loads = get_serializer(fmt)
-                expire = get_expire(ttl, fuzzy_ttl)
+    def __call__(self, *args, **kwargs):
+        k = self.keyfunc(*args, **kwargs)
+        result = self.cache.get(k)
+        if result is None:
+            result = self.func(*args, **kwargs)
+            self.cache.set(k, self.dumps(result), self.ttl)
+            return result
+        else:
+            return self.loads(result)
 
-                class Cache(object):
-                    def __call__(self, *args, **kwargs):
-                        k = keyfunc(*args, **kwargs)
-                        result = cache.get(k)
-                        if result is None:
-                            result = func(*args, **kwargs)
-                            cache.set(k, dumps(result), expire)
-                            return result
-                        else:
-                            return loads(result)
+    def get(self, *args, **kwargs):
+        k = self.keyfunc(*args, **kwargs)
+        result = self.cache.get(k)
+        if result:
+            return self.loads(result)
 
-                    def get(self, *args, **kwargs):
-                        k = keyfunc(*args, **kwargs)
-                        result = cache.get(k)
-                        if result:
-                            return loads(result)
+    def invalidate(self, *args, **kwargs):
+        key = self.keyfunc(*args, **kwargs)
+        self.cache.delete(key)
 
-                    def invalidate(self, *args, **kwargs):
-                        key = keyfunc(*args, **kwargs)
-                        cache.delete(key)
 
-                return wraps(func)(Cache())
-            return decorator
+class MultiCacheWrapper(CacheWrapper):
+    def __call__(self, ids, *args, **kwargs):
+        if not isinstance(ids, (list, tuple)):
+            ids = list(ids)
 
-        def objects(self, tpl, ttl=ttl, fmt=fmt, fuzzy_ttl=fuzzy_ttl):
-            def decorator(func):
-                keyfunc = make_key_func(tpl, func, True)
-                dumps, loads = get_serializer(fmt)
-                expire = get_expire(ttl, fuzzy_ttl)
+        dumps = self.dumps
+        loads = self.loads
 
-                class ObjectsCache(object):
-                    def __call__(self, ids, *args, **kwargs):
-                        if not isinstance(ids, (list, tuple)):
-                            ids = list(ids)
-                        keys = keyfunc(ids, *args, **kwargs)
-                        cresult = {}
-                        if keys:
-                            for oid, value in zip(ids, cache.mget(keys)):
-                                if value is not None:
-                                    cresult[oid] = loads(value)
+        keys = self.keyfunc(ids, *args, **kwargs)
+        cresult = {}
+        if keys:
+            for oid, value in zip(ids, self.cache.mget(keys)):
+                if value is not None:
+                    cresult[oid] = loads(value)
 
-                        ids_to_fetch = set(ids) - set(cresult)
-                        if ids_to_fetch:
-                            fresult = func(ids_to_fetch, *args, **kwargs)
-                            if fresult:
-                                to_cache_pairs = listitems(fresult)
-                                to_cache_ids, to_cache_values = zip(*to_cache_pairs)
-                                cache.mset(zip(keyfunc(to_cache_ids, *args, **kwargs),
-                                               [dumps(r) for r in to_cache_values]), expire)
-                            cresult.update(fresult)
+        ids_to_fetch = set(ids) - set(cresult)
+        if ids_to_fetch:
+            fresult = self.func(ids_to_fetch, *args, **kwargs)
+            if fresult:
+                to_cache_pairs = listitems(fresult)
+                to_cache_ids, to_cache_values = zip(*to_cache_pairs)
+                self.cache.mset(zip(self.keyfunc(to_cache_ids, *args, **kwargs),
+                                    [dumps(r) for r in to_cache_values]), self.ttl)
+            cresult.update(fresult)
 
-                        return cresult
+        return cresult
 
-                    def invalidate(self, ids, *args, **kwargs):
-                        keys = keyfunc(ids, *args, **kwargs)
-                        cache.mdelete(keys)
+    def invalidate(self, ids, *args, **kwargs):
+        keys = self.keyfunc(ids, *args, **kwargs)
+        self.cache.mdelete(keys)
 
-                return wraps(func)(ObjectsCache())
-            return decorator
 
-    return Cacher()
+class make_cache(object):
+    def __init__(self, cache, ttl=600, fmt='msgpack', fuzzy_ttl=True):
+        self.cache = cache
+        self.ttl = ttl
+        self.fmt = fmt
+        self.fuzzy_ttl = fuzzy_ttl
+
+    def _wrapper(self, cls, tpl, ttl, fmt, fuzzy_ttl, multi=False):
+        def decorator(func):
+            return wraps(func)(cls(
+                func, self.cache,
+                make_key_func(tpl, func, multi),
+                get_serializer(fmt or self.fmt),
+                get_expire(ttl or self.ttl, fuzzy_ttl or self.fuzzy_ttl)))
+        return decorator
+
+    def __call__(self, tpl, ttl=None, fmt=None, fuzzy_ttl=None):
+        return self._wrapper(CacheWrapper, tpl, ttl, fmt, fuzzy_ttl)
+
+    def objects(self, tpl, ttl=None, fmt=None, fuzzy_ttl=None):
+        return self._wrapper(MultiCacheWrapper, tpl, ttl, fmt, fuzzy_ttl, multi=True)
 
 
 class BaseCache(object):
