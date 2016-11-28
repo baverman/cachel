@@ -1,5 +1,4 @@
 from __future__ import absolute_import
-
 from uwsgi import cache_set, cache_get, cache_del
 from . import BaseCache
 
