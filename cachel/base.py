@@ -23,7 +23,7 @@ SERIALIZERS = {
                 partial(msgpack.loads, encoding='utf-8')),
 }
 
-try:
+try: # pragma: no cover
     import ujson
     SERIALIZERS['ujson'] = partial(ujson.dumps, ensure_ascii=False), ujson.loads
     SERIALIZERS['slow_json'] = SERIALIZERS['json']
