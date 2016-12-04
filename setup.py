@@ -1,9 +1,8 @@
 from setuptools import setup, find_packages
-import cachel
 
 setup(
     name='cachel',
-    version=cachel.version,
+    version='0.5',
     url='https://github.com/baverman/cachel/',
     license='MIT',
     author='Anton Bobrov',
