@@ -1,4 +1,5 @@
 import json
+import logging
 from functools import partial, wraps
 from string import Formatter
 from random import randint
@@ -14,7 +15,9 @@ import msgpack
 from .compat import iteritems, listitems
 
 __all__ = ['SERIALIZERS', 'make_key_func', 'make_cache', 'NullCache', 'BaseCache',
-           'wrap_in', 'wrap_dict_value_in']
+           'wrap_in', 'wrap_dict_value_in', 'delayed_cache']
+
+log = logging.getLogger('cachel')
 
 SERIALIZERS = {
     'json': (partial(json.dumps, ensure_ascii=False), json.loads),
@@ -113,6 +116,10 @@ def make_key_func(tpl, func, multi=False):
 class CacheWrapper(object):
     def __init__(self, func, cache, keyfunc, serializer, ttl):
         self.func = func
+        self.__name__ = self.func.__name__
+        self.__doc__ = self.func.__doc__
+        self.__module__ = self.func.__module__
+        self._cachel_original_func = getattr(func, '_cachel_original_func', func)
         self.cache = cache
         self.keyfunc = keyfunc
         self.dumps, self.loads = serializer
@@ -133,6 +140,10 @@ class CacheWrapper(object):
         result = self.cache.get(k)
         if result:
             return self.loads(result)
+
+    def set(self, value, *args, **kwargs):
+        k = self.keyfunc(*args, **kwargs)
+        self.cache.set(k, self.dumps(value), self.ttl)
 
     def invalidate(self, *args, **kwargs):
         key = self.keyfunc(*args, **kwargs)
@@ -180,11 +191,12 @@ class make_cache(object):
 
     def _wrapper(self, cls, tpl, ttl, fmt, fuzzy_ttl, multi=False):
         def decorator(func):
-            return wraps(func)(cls(
+            original_func = getattr(func, '_cachel_original_func', func)
+            return cls(
                 func, self.cache,
-                make_key_func(tpl, func, multi),
+                make_key_func(tpl, original_func, multi),
                 get_serializer(fmt or self.fmt),
-                get_expire(ttl or self.ttl, fuzzy_ttl or self.fuzzy_ttl)))
+                get_expire(ttl or self.ttl, fuzzy_ttl or self.fuzzy_ttl))
         return decorator
 
     def __call__(self, tpl, ttl=None, fmt=None, fuzzy_ttl=None):
@@ -239,5 +251,33 @@ def wrap_dict_value_in(wrapper):
         def inner(*args, **kwargs):
             result = func(*args, **kwargs)
             return {k: wrapper(v) for k, v in iteritems(result)}
+        return inner
+    return decorator
+
+
+def delayed_cache(default=None):
+    def decorator(func):
+        l1 = func
+        l2 = l1.func
+        func = l2.func
+
+        @wraps(func)
+        def inner(*args, **kwargs):
+            result = l1.get(*args, **kwargs)
+            if result is None:
+                try:
+                    result = func(*args, **kwargs)
+                except Exception:
+                    log.exception('Cache error')
+                    result = l2.get(*args, **kwargs)
+                else:
+                    l2.set(result, *args, **kwargs)
+
+            if result is None:
+                result = default
+            else:
+                l1.set(result, *args, **kwargs)
+
+            return result
         return inner
     return decorator
