@@ -38,6 +38,6 @@ def offload_worker(offload_cache):
         while True:
             payload = mule_get_msg()
             params = loads(payload)
-            offload_cache.offload_params(params)
+            offload_cache.offload_helper(params)
 
     return worker

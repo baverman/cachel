@@ -3,7 +3,7 @@ from functools import wraps
 from time import time
 
 from .base import make_key_func, get_serializer, get_expire
-from .compat import PY2
+from .compat import PY2, listitems
 
 log = logging.getLogger('cachel')
 
@@ -33,11 +33,9 @@ class OffloadCacheWrapper(object):
                 self.cache2.set(k, self.dumps2(sdata), self.ttl2)
             else:
                 expire, result = self.loads2(result)
-                cache1_updated = False
+                self.cache1.set(k, result, self.ttl1)
                 if time() > expire:
-                    cache1_updated = self.offload(self, k, args, kwargs)
-                if not cache1_updated:
-                    self.cache1.set(k, result, self.ttl1)
+                    self.offload(self, k, args, kwargs)
                 return self.loads(result)
             return result
         else:
@@ -47,8 +45,8 @@ class OffloadCacheWrapper(object):
         expire, _, data = data.partition(b':')
         return int(expire), data
 
-    def dumps2(self, data):  # pragma: nocover
-        expire = int(time() + self.ttl1)
+    def dumps2(self, data, now=None):  # pragma: nocover
+        expire = int((now or time()) + self.ttl1)
         if PY2:
             return '{}:{}'.format(expire, data)
         else:
@@ -69,33 +67,85 @@ class OffloadCacheWrapper(object):
         self.cache2.delete(key)
 
 
-def default_offload(cache, key, args, kwargs, update_cache1=False):
+class OffloadObjectsCacheWrapper(OffloadCacheWrapper):
+    def __call__(self, ids, *args, **kwargs):
+        if not isinstance(ids, (list, tuple)):
+            ids = list(ids)
+
+        loads = self.loads
+        loads2 = self.loads2
+        now = time()
+
+        keys = self.keyfunc(ids, *args, **kwargs)
+        cresult = {}
+        if keys:
+            for oid, value in zip(ids, self.cache1.mget(keys)):
+                if value is not None:
+                    cresult[oid] = loads(value)
+
+        c2_ids_to_fetch = list(set(ids) - set(cresult))
+        c2_keys = self.keyfunc(c2_ids_to_fetch, *args, **kwargs)
+        c2_result = {}
+        offload_ids = []
+        update_data = []
+        if c2_ids_to_fetch:
+            for key, oid, value in zip(c2_keys, c2_ids_to_fetch, self.cache2.mget(c2_keys)):
+                if value is not None:
+                    expire, data = loads2(value)
+                    update_data.append((key, data))
+                    if now > expire:
+                        offload_ids.append(oid)
+                    c2_result[oid] = loads(data)
+            cresult.update(c2_result)
+
+        if update_data:
+            self.cache1.mset(update_data, self.ttl1)
+
+        if offload_ids:
+            self.offload(self, offload_ids, args, kwargs, multi=True)
+
+        ids_to_fetch = set(c2_ids_to_fetch) - set(c2_result)
+        if ids_to_fetch:
+            fresult = self._get_func_result(ids_to_fetch, args, kwargs, now)
+            cresult.update(fresult)
+
+        return cresult
+
+    def _get_func_result(self, ids, args, kwargs, now=None):
+        now = now or time()
+        dumps = self.dumps
+        dumps2 = self.dumps2
+        fresult = self.func(ids, *args, **kwargs)
+        if fresult:
+            to_cache_pairs = listitems(fresult)
+            to_cache_ids, to_cache_values = zip(*to_cache_pairs)
+            keys = self.keyfunc(to_cache_ids, *args, **kwargs)
+            values = [dumps(r) for r in to_cache_values]
+            evalues = [dumps2(r, now) for r in values]
+            self.cache1.mset(zip(keys, values), self.ttl1)
+            self.cache2.mset(zip(keys, evalues), self.ttl2)
+        return fresult
+
+
+def default_offload(cache, key, args, kwargs, multi=False):
     try:
-        result = cache.func(*args, **kwargs)
+        if multi:
+            cache._get_func_result(key, args, kwargs)
+        else:
+            result = cache.func(*args, **kwargs)
+            sdata = cache.dumps(result)
+            cache.cache1.set(key, sdata, cache.ttl1)
+            cache.cache2.set(key, cache.dumps2(sdata), cache.ttl2)
     except Exception:
-        log.exception('Error reshing local cache key')
-        if update_cache1:
-            result = cache.cache2.get(key)
-            if result:
-                _, result = cache.loads2(result)
-                cache.cache1.set(key, result, cache.ttl1)
-        return update_cache1
-    else:
-        sdata = cache.dumps(result)
-        cache.cache1.set(key, sdata, cache.ttl1)
-        cache.cache2.set(key, cache.dumps2(sdata), cache.ttl2)
-    return True
+        log.exception('Error refreshing offload cache key')
 
 
 def offloader(func):
     @wraps(func)
-    def inner(cache, key, args, kwargs):
-        params = {'cache_id': cache.id,
-                  'key': key,
-                  'args': args,
-                  'kwargs': kwargs}
+    def inner(cache, key, args, kwargs, multi=False):
+        params = {'cache_id': cache.id, 'key': key, 'args': args,
+                  'kwargs': kwargs, 'multi': multi}
         func(params)
-        return False
     return inner
 
 
@@ -131,14 +181,14 @@ class make_offload_cache(object):
     def __call__(self, tpl, ttl1=None, ttl2=None, fmt=None, fuzzy_ttl=None):
         return self._wrapper(OffloadCacheWrapper, tpl, ttl1, ttl2, fmt, fuzzy_ttl)
 
-    def offload_params(self, params):
+    def objects(self, tpl, ttl1=None, ttl2=None, fmt=None, fuzzy_ttl=None):
+        return self._wrapper(OffloadObjectsCacheWrapper, tpl, ttl1, ttl2, fmt, fuzzy_ttl, multi=True)
+
+    def offload_helper(self, params):
         cache_id = params.pop('cache_id')
         cache = self.caches.get(cache_id)
         if not cache:  # pragma: no cover
             log.error('Cache not found: %s', cache_id)
             return
 
-        default_offload(cache, update_cache1=True, **params)
-
-    # def objects(self, tpl, ttl=None, fmt=None, fuzzy_ttl=None):
-    #     return self._wrapper(ObjectsCacheWrapper, tpl, ttl, fmt, fuzzy_ttl, multi=True)
+        default_offload(cache, **params)
