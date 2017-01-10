@@ -25,8 +25,15 @@ def test_make_key_func():
     f = make_key_func('{foo}-{boo}', lambda foo, boo: None)
     assert f(10, 20) == '10-20'
 
+    f = make_key_func('{boo}-{foo}', lambda foo, boo: None)
+    assert f(10, 20) == '20-10'
+
     f = make_key_func('{id}', lambda foo: None, True)
     assert f([20, 30]) == ['20', '30']
+
+    f = make_key_func('{foo}-{id}', lambda ids, foo=None: None, True)
+    assert f([20, 30]) == ['None-20', 'None-30']
+    assert f([20, 30], 'boo') == ['boo-20', 'boo-30']
 
 
 def test_gen_expire():

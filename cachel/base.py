@@ -82,19 +82,19 @@ def make_key_func(tpl, func, multi=False):
     targs = []
     template = []
     idx = 0
+    aidx = 0
     for sep, name, fmt, _ in fields:
         if sep:
             template.append(sep)
 
         if name is not None:
             if name:
-                i = args.index(name)
                 targs.append(name)
             else:
-                i = idx
-                idx += 1
-                targs.append(args[i])
-            template.append('{{{}:{}}}'.format(i, fmt))
+                targs.append(args[aidx])
+                aidx += 1
+            template.append('{{{}:{}}}'.format(idx, fmt))
+            idx += 1
 
     signature = ', '.join(signature)
     ftpl = ''.join(template)
