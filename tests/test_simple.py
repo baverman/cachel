@@ -53,7 +53,7 @@ def test_make_cache_objects():
     @cache.objects('user:{}')
     def get_users(ids):
         called[0] += 1
-        return {r: u'user-{}'.format(r) for r in ids}
+        return {r: u'user-{}'.format(r) for r in ids if r != 3}
 
     result = get_users([1, 2])
     assert result == {1: 'user-1', 2: 'user-2'}
@@ -71,3 +71,7 @@ def test_make_cache_objects():
     result = get_users(set((1, 2)))
     assert result == {1: 'user-1', 2: 'user-2'}
     assert called == [2]
+
+    assert get_users.one(1) == 'user-1'
+    assert get_users.one(3) is None
+    assert get_users.one(3, _default='None') == 'None'

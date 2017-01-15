@@ -68,6 +68,10 @@ class ObjectsCacheWrapper(CacheWrapper):
         keys = self.keyfunc(ids, *args, **kwargs)
         self.cache.mdelete(keys)
 
+    def one(self, id, *args, **kwargs):
+        default = kwargs.pop('_default', None)
+        return self([id], *args, **kwargs).get(id, default)
+
 
 class make_cache(object):
     def __init__(self, cache, ttl=600, fmt='msgpack', fuzzy_ttl=True):

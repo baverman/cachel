@@ -126,6 +126,10 @@ class OffloadObjectsCacheWrapper(OffloadCacheWrapper):
             self.cache2.mset(zip(keys, evalues), self.ttl2)
         return fresult
 
+    def one(self, id, *args, **kwargs):
+        default = kwargs.pop('_default', None)
+        return self([id], *args, **kwargs).get(id, default)
+
 
 def default_offload(cache, key, args, kwargs, multi=False):
     try:
