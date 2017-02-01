@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='cachel',
-    version='0.7.0',
+    version='0.7.1',
     url='https://github.com/baverman/cachel/',
     license='MIT',
     author='Anton Bobrov',
