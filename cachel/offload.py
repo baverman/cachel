@@ -124,11 +124,20 @@ class OffloadObjectsCacheWrapper(OffloadCacheWrapper):
             evalues = [dumps2(r, now) for r in values]
             self.cache1.mset(zip(keys, values), self.ttl1)
             self.cache2.mset(zip(keys, evalues), self.ttl2)
+
+        nonexisting_ids = set(ids) - set(fresult)
+        if nonexisting_ids:
+            self.invalidate(nonexisting_ids, *args, **kwargs)
+
         return fresult
 
     def one(self, id, *args, **kwargs):
         default = kwargs.pop('_default', None)
         return self([id], *args, **kwargs).get(id, default)
+
+    def invalidate(self, ids, *args, **kwargs):
+        keys = self.keyfunc(ids, *args, **kwargs)
+        self.cache2.mdelete(keys)
 
 
 def default_offload(cache, key, args, kwargs, multi=False):

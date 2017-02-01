@@ -122,9 +122,9 @@ def test_offload_objects_cache(monkeypatch):
     called = [0]
 
     @cache.objects('user:{}', 5, 10, fuzzy_ttl=False)
-    def foo(ids):
+    def foo(ids, miss=None):
         called[0] += 1
-        return {r: 'user-{}'.format(r) for r in ids if r != 3}
+        return {r: 'user-{}'.format(r) for r in ids if r != miss}
 
     # first get
     monkeypatch.setattr(offload, 'time', lambda: 20)
@@ -159,5 +159,29 @@ def test_offload_objects_cache(monkeypatch):
     assert c2.cache == {'user:1': (b'31:user-1', 10)}
 
     assert foo.one(1) == 'user-1'
-    assert foo.one(3) is None
-    assert foo.one(3, _default='None') == 'None'
+    assert foo.one(3, miss=3) is None
+    assert foo.one(3, miss=3, _default='None') == 'None'
+
+
+def test_offload_objects_cache_missing_keys(monkeypatch):
+    c1 = Cache()
+    c2 = Cache()
+    cache = offload.make_offload_cache(c1, c2, fmt='test')
+    called = [0]
+
+    @cache.objects('user:{}', 5, 10, fuzzy_ttl=False)
+    def foo(ids, miss=None):
+        called[0] += 1
+        return {r: 'user-{}'.format(r) for r in ids if r != miss}
+
+    monkeypatch.setattr(offload, 'time', lambda: 20)
+    result = foo([1])
+
+    monkeypatch.setattr(offload, 'time', lambda: 26)
+    c1.delete('user:1')
+    result = foo([1], miss=1)
+    assert result == {1: 'user-1'}
+
+    c1.delete('user:1')
+    result = foo([1], miss=1)
+    assert not result
