@@ -10,7 +10,7 @@ log = logging.getLogger('cachel')
 
 class OffloadCacheWrapper(object):
     def __init__(self, func, keyfunc, serializer, cache1,
-                 cache2, ttl1, ttl2, offload):
+                 cache2, ttl1, ttl2, expire, offload):
         self.id = '{}.{}'.format(func.__module__, func.__name__)
         self.func = func
         self.cache1 = cache1
@@ -19,6 +19,7 @@ class OffloadCacheWrapper(object):
         self.dumps, self.loads = serializer
         self.ttl1 = ttl1
         self.ttl2 = ttl2
+        self.expire = expire or ttl1
         self.offload = offload
 
     def __call__(self, *args, **kwargs):
@@ -46,7 +47,7 @@ class OffloadCacheWrapper(object):
         return int(expire), data
 
     def dumps2(self, data, now=None):  # pragma: nocover
-        expire = int((now or time()) + self.ttl1)
+        expire = int((now or time()) + self.expire)
         if PY2:
             return '{}:{}'.format(expire, data)
         else:
@@ -163,39 +164,44 @@ def offloader(func):
 
 
 class make_offload_cache(object):
-    def __init__(self, cache1, cache2, ttl1=600, ttl2=None, fmt='msgpack',
+    def __init__(self, cache1, cache2, ttl1=600, ttl2=None, expire=None, fmt='msgpack',
                  fuzzy_ttl=True, offload=None):
         self.caches = {}
         self.cache1 = cache1
         self.cache2 = cache2
         self.ttl1 = ttl1
         self.ttl2 = ttl2
+        self.expire = expire
         self.fmt = fmt
         self.fuzzy_ttl = fuzzy_ttl
         self.offload = offload
 
-    def _wrapper(self, cls, tpl, ttl1, ttl2, fmt, fuzzy_ttl, multi=False):
+    def _wrapper(self, cls, tpl, ttl1, ttl2, expire, fmt, fuzzy_ttl, multi=False):
         def decorator(func):
             ttl = ttl1 or self.ttl1
+            fttl = self.fuzzy_ttl if fuzzy_ttl is None else fuzzy_ttl
             cache = cls(
                 func,
                 make_key_func(tpl, func, multi),
                 get_serializer(fmt or self.fmt),
                 self.cache1,
                 self.cache2,
-                get_expire(ttl, fuzzy_ttl or self.fuzzy_ttl),
+                get_expire(ttl, fttl),
                 ttl2 or self.ttl2 or ttl * 2,
+                expire or self.expire,
                 self.offload or default_offload
             )
             self.caches[cache.id] = cache
             return wraps(func)(cache)
         return decorator
 
-    def __call__(self, tpl, ttl1=None, ttl2=None, fmt=None, fuzzy_ttl=None):
-        return self._wrapper(OffloadCacheWrapper, tpl, ttl1, ttl2, fmt, fuzzy_ttl)
+    def __call__(self, tpl, ttl1=None, ttl2=None, expire=None, fmt=None, fuzzy_ttl=None):
+        return self._wrapper(OffloadCacheWrapper, tpl, ttl1,
+                             ttl2, expire, fmt, fuzzy_ttl)
 
-    def objects(self, tpl, ttl1=None, ttl2=None, fmt=None, fuzzy_ttl=None):
-        return self._wrapper(OffloadObjectsCacheWrapper, tpl, ttl1, ttl2, fmt, fuzzy_ttl, multi=True)
+    def objects(self, tpl, ttl1=None, ttl2=None, expire=None, fmt=None, fuzzy_ttl=None):
+        return self._wrapper(OffloadObjectsCacheWrapper, tpl, ttl1, ttl2,
+                             expire,fmt, fuzzy_ttl, multi=True)
 
     def offload_helper(self, params):
         cache_id = params.pop('cache_id')

@@ -46,7 +46,9 @@ def get_serializer(fmt):
 
 def get_expire(ttl, fuzzy_ttl):
     if fuzzy_ttl:  # pragma: no cover
-        ttl = gen_expire(ttl)
+        if fuzzy_ttl is True:
+            fuzzy_ttl = 10
+        ttl = gen_expire(ttl, fuzzy_ttl)
     return ttl
 
 

@@ -82,11 +82,12 @@ class make_cache(object):
 
     def _wrapper(self, cls, tpl, ttl, fmt, fuzzy_ttl, multi=False):
         def decorator(func):
+            fttl = self.fuzzy_ttl if fuzzy_ttl is None else fuzzy_ttl
             return wraps(func)(cls(
                 func, self.cache,
                 make_key_func(tpl, func, multi),
                 get_serializer(fmt or self.fmt),
-                get_expire(ttl or self.ttl, fuzzy_ttl or self.fuzzy_ttl)))
+                get_expire(ttl or self.ttl, fttl)))
         return decorator
 
     def __call__(self, tpl, ttl=None, fmt=None, fuzzy_ttl=None):

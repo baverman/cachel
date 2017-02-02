@@ -121,7 +121,7 @@ def test_offload_objects_cache(monkeypatch):
     cache = offload.make_offload_cache(c1, c2, fmt='test')
     called = [0]
 
-    @cache.objects('user:{}', 5, 10, fuzzy_ttl=False)
+    @cache.objects('user:{}', 5, 10, 6, fuzzy_ttl=False)
     def foo(ids, miss=None):
         called[0] += 1
         return {r: 'user-{}'.format(r) for r in ids if r != miss}
@@ -132,14 +132,14 @@ def test_offload_objects_cache(monkeypatch):
     assert result == {1: 'user-1'}
     assert called == [1]
     assert c1.cache == {'user:1': (b'user-1', 5)}
-    assert c2.cache == {'user:1': (b'25:user-1', 10)}
+    assert c2.cache == {'user:1': (b'26:user-1', 10)}
 
     # get with unexpired caches
     result = foo([1])
     assert result == {1: 'user-1'}
     assert called == [1]
     assert c1.cache == {'user:1': (b'user-1', 5)}
-    assert c2.cache == {'user:1': (b'25:user-1', 10)}
+    assert c2.cache == {'user:1': (b'26:user-1', 10)}
 
     # get with expired c1 and unexpired value from c2
     c1.delete('user:1')
@@ -147,16 +147,16 @@ def test_offload_objects_cache(monkeypatch):
     assert result == {1: 'user-1'}
     assert called == [1]
     assert c1.cache == {'user:1': (b'user-1', 5)}
-    assert c2.cache == {'user:1': (b'25:user-1', 10)}
+    assert c2.cache == {'user:1': (b'26:user-1', 10)}
 
     # get with expired c1 and expired value from c2
-    monkeypatch.setattr(offload, 'time', lambda: 26)
+    monkeypatch.setattr(offload, 'time', lambda: 27)
     c1.delete('user:1')
     result = foo(set([1]))
     assert result == {1: 'user-1'}
     assert called == [2]
     assert c1.cache == {'user:1': (b'user-1', 5)}
-    assert c2.cache == {'user:1': (b'31:user-1', 10)}
+    assert c2.cache == {'user:1': (b'33:user-1', 10)}
 
     assert foo.one(1) == 'user-1'
     assert foo.one(3, miss=3) is None
