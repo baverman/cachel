@@ -1,6 +1,8 @@
 import logging
 from functools import wraps
-from time import time
+from collections import deque
+from threading import Thread
+from time import time, sleep
 
 from .base import make_key_func, get_serializer, get_expire
 from .compat import PY2, listitems
@@ -211,3 +213,36 @@ class make_offload_cache(object):
             return
 
         default_offload(cache, **params)
+
+
+class ThreadOffloader(object):
+    def __init__(self, size=1000):
+        self.queue = deque(maxlen=size)
+
+    def __call__(self, cache, key, args, kwargs, multi=False):
+        self.queue.appendleft((cache, key, args, kwargs, multi))
+
+    def pop(self):
+        try:
+            return self.queue.pop()
+        except IndexError:
+            pass
+
+    def worker(self):
+        pop = self.pop
+        wait = None
+        while True:
+            item = pop()
+            if item:
+                default_offload(*item)
+                wait = None
+            else:
+                if not wait:
+                    wait = iter([0.001, 0.01, 0.1, 0.5])
+                sleep(next(wait, 1))
+
+    def run(self):
+        t = Thread(target=self.worker)
+        t.daemon = True
+        t.start()
+        return t

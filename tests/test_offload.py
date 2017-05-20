@@ -185,3 +185,22 @@ def test_offload_objects_cache_missing_keys(monkeypatch):
     c1.delete('user:1')
     result = foo([1], miss=1)
     assert not result
+
+
+def test_thread_offloader(monkeypatch):
+    c1 = Cache()
+    c2 = Cache()
+    offloader = offload.ThreadOffloader()
+    cache = offload.make_offload_cache(c1, c2, fmt='test', offload=offloader)
+    called = [0]
+
+    @cache.objects('user:{}', 5, 10, fuzzy_ttl=False)
+    def foo(ids, miss=None):
+        called[0] += 1
+        return {r: 'user-{}'.format(r) for r in ids if r != miss}
+
+    monkeypatch.setattr(offload, 'time', lambda: 20)
+    offloader(foo, [1], (), {}, True)
+    offloader.run()
+    assert c1.cache == {'user:1': (b'user-1', 5)}
+    assert c2.cache == {'user:1': (b'25:user-1', 10)}
