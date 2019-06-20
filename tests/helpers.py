@@ -1,4 +1,5 @@
 from cachel.base import BaseCache, SERIALIZERS
+from cachel import compat
 
 
 class Cache(BaseCache):
@@ -18,14 +19,5 @@ class Cache(BaseCache):
         self.cache.pop(key, None)
 
 
-def dumps(x):
-    if isinstance(x, type(u'')):
-        x = x.encode('utf-8')
-    return x
-
-
-def loads(x):
-    return x.decode('utf-8')
-
-
-SERIALIZERS['test'] = dumps, loads
+if compat.ASYNC:
+    from ._async_helpers import AsyncCache

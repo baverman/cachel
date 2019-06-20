@@ -5,7 +5,7 @@ from .helpers import Cache
 
 
 def test_make_cache():
-    cache = make_cache(Cache(), ttl=42, fuzzy_ttl=False, fmt='test')
+    cache = make_cache(Cache(), ttl=42, fuzzy_ttl=False, fmt='unicode')
     called = [0]
 
     @cache('user:{}')
@@ -40,7 +40,7 @@ def test_make_cache():
 
 
 def test_make_cache_custom_expire():
-    cache = make_cache(Cache(), ttl=42, fuzzy_ttl=False, fmt='test')
+    cache = make_cache(Cache(), ttl=42, fuzzy_ttl=False, fmt='unicode')
 
     @cache('user:{}')
     def get_user(user_id):
@@ -60,7 +60,7 @@ def test_make_cache_for_unknown_serializer():
 
 
 def test_make_cache_objects():
-    cache = make_cache(Cache(), ttl=42, fuzzy_ttl=False, fmt='test')
+    cache = make_cache(Cache(), ttl=42, fuzzy_ttl=False, fmt='unicode')
     called = [0]
 
     @cache.objects('user:{}')
@@ -91,7 +91,7 @@ def test_make_cache_objects():
 
 
 def test_make_cache_objects_custom_expire():
-    cache = make_cache(Cache(), ttl=42, fuzzy_ttl=False, fmt='test')
+    cache = make_cache(Cache(), ttl=42, fuzzy_ttl=False, fmt='unicode')
 
     @cache.objects('user:{}')
     def get_users(ids):

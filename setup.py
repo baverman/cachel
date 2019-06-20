@@ -15,7 +15,7 @@ setup(
     platforms='any',
     install_requires=[
         'redis >= 2.7.0',
-        'msgpack-python>=0.4.0',
+        'msgpack>=0.6.0',
     ],
     classifiers=[
         'Development Status :: 4 - Beta',

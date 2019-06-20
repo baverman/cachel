@@ -1,6 +1,10 @@
 import sys
 
 PY2 = sys.version_info[0] == 2
+ASYNC = sys.version_info[:2] >= (3, 5)
+ASYNC_COMPREHENSIONS = sys.version_info[:2] >= (3, 6)
+
+utype = type(u'')
 
 if PY2:  # pragma: no cover
     import __builtin__ as builtins

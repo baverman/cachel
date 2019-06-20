@@ -11,16 +11,30 @@ except ImportError:  # pragma: no cover py2
 
 import msgpack
 
-from .compat import iteritems
+from .compat import iteritems, ASYNC, utype
+
+idfunc = lambda v: v
+
+def u_dumps(x):
+    if type(x) is utype:
+        x = x.encode('utf-8')
+    return x
+
+
+def u_loads(x):
+    return x.decode('utf-8')
+
 
 SERIALIZERS = {
+    'none': (idfunc, idfunc),
+    'unicode': (u_dumps, u_loads),
     'json': (partial(json.dumps, ensure_ascii=False), json.loads),
     'pickle': (partial(pickle.dumps, protocol=2), pickle.loads),
     'msgpack': (partial(msgpack.dumps, use_bin_type=True),
                 partial(msgpack.loads, encoding='utf-8')),
 }
 
-try: # pragma: no cover
+try:  # pragma: no cover
     import ujson
     SERIALIZERS['ujson'] = partial(ujson.dumps, ensure_ascii=False), ujson.loads
     SERIALIZERS['slow_json'] = SERIALIZERS['json']
@@ -139,7 +153,8 @@ class NullCache(BaseCache):
     def delete(self, key): pass
 
 
-class _Expire(tuple): pass
+class _Expire(tuple):
+    pass
 
 
 def expire(value, ttl):
@@ -163,3 +178,7 @@ def wrap_dict_value_in(wrapper):
             return {k: wrapper(v) for k, v in iteritems(result)}
         return inner
     return decorator
+
+
+if ASYNC:  # pragma: no cover
+    from ._async_base import *

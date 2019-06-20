@@ -1,3 +1,4 @@
+import time
 from cachel import offload
 from .helpers import Cache
 
@@ -5,7 +6,7 @@ from .helpers import Cache
 def test_offload_cache(monkeypatch):
     c1 = Cache()
     c2 = Cache()
-    cache = offload.make_offload_cache(c1, c2, fmt='test')
+    cache = offload.make_offload_cache(c1, c2, fmt='unicode')
     called = [0]
 
     @cache('user:{}', 5, 10, fuzzy_ttl=False)
@@ -49,7 +50,7 @@ def test_offload_cache(monkeypatch):
 def test_default_offload_with_exc(monkeypatch):
     c1 = Cache()
     c2 = Cache()
-    cache = offload.make_offload_cache(c1, c2, fmt='test')
+    cache = offload.make_offload_cache(c1, c2, fmt='unicode')
     called = [0]
 
     @cache('user:{}', 5, 10, fuzzy_ttl=False)
@@ -78,7 +79,7 @@ def test_offload(monkeypatch):
 
     c1 = Cache()
     c2 = Cache()
-    cache = offload.make_offload_cache(c1, c2, fmt='test', offload=custom_offload)
+    cache = offload.make_offload_cache(c1, c2, fmt='unicode', offload=custom_offload)
     called = [0]
 
     @cache('user:{}', 5, 10, fuzzy_ttl=False)
@@ -100,7 +101,7 @@ def test_offload(monkeypatch):
 def test_get_set_invalidate():
     c1 = Cache()
     c2 = Cache()
-    cache = offload.make_offload_cache(c1, c2, fmt='test')
+    cache = offload.make_offload_cache(c1, c2, fmt='unicode')
 
     @cache('user:{}', 5, 10, fuzzy_ttl=False)
     def foo(user_id):
@@ -118,7 +119,7 @@ def test_get_set_invalidate():
 def test_offload_objects_cache(monkeypatch):
     c1 = Cache()
     c2 = Cache()
-    cache = offload.make_offload_cache(c1, c2, fmt='test')
+    cache = offload.make_offload_cache(c1, c2, fmt='unicode')
     called = [0]
 
     @cache.objects('user:{}', 5, 10, 6, fuzzy_ttl=False)
@@ -166,7 +167,7 @@ def test_offload_objects_cache(monkeypatch):
 def test_offload_objects_cache_missing_keys(monkeypatch):
     c1 = Cache()
     c2 = Cache()
-    cache = offload.make_offload_cache(c1, c2, fmt='test')
+    cache = offload.make_offload_cache(c1, c2, fmt='unicode')
     called = [0]
 
     @cache.objects('user:{}', 5, 10, fuzzy_ttl=False)
@@ -191,7 +192,7 @@ def test_thread_offloader(monkeypatch):
     c1 = Cache()
     c2 = Cache()
     offloader = offload.ThreadOffloader()
-    cache = offload.make_offload_cache(c1, c2, fmt='test', offload=offloader)
+    cache = offload.make_offload_cache(c1, c2, fmt='unicode', offload=offloader)
     called = [0]
 
     @cache.objects('user:{}', 5, 10, fuzzy_ttl=False)
@@ -202,5 +203,6 @@ def test_thread_offloader(monkeypatch):
     monkeypatch.setattr(offload, 'time', lambda: 20)
     offloader(foo, [1], (), {}, True)
     offloader.run()
+    time.sleep(0.1)
     assert c1.cache == {'user:1': (b'user-1', 5)}
     assert c2.cache == {'user:1': (b'25:user-1', 10)}
