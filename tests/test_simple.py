@@ -1,4 +1,5 @@
 import pytest
+from cachel import expire
 from cachel.simple import make_cache
 from .helpers import Cache
 
@@ -38,6 +39,18 @@ def test_make_cache():
     assert called == [2]
 
 
+def test_make_cache_custom_expire():
+    cache = make_cache(Cache(), ttl=42, fuzzy_ttl=False, fmt='test')
+
+    @cache('user:{}')
+    def get_user(user_id):
+        return expire(u'user-{}'.format(user_id), 100)
+
+    result = get_user(10)
+    assert result == 'user-10'
+    assert get_user.cache.cache['user:10'] == (b'user-10', 100)
+
+
 def test_make_cache_for_unknown_serializer():
     c = make_cache(None, fmt='boo')
     with pytest.raises(Exception) as ei:
@@ -75,3 +88,16 @@ def test_make_cache_objects():
     assert get_users.one(1) == 'user-1'
     assert get_users.one(3) is None
     assert get_users.one(3, _default='None') == 'None'
+
+
+def test_make_cache_objects_custom_expire():
+    cache = make_cache(Cache(), ttl=42, fuzzy_ttl=False, fmt='test')
+
+    @cache.objects('user:{}')
+    def get_users(ids):
+        return {1: 'boo', 2: expire('foo', 100)}
+
+    result = get_users([1, 2])
+    assert result == {1: 'boo', 2: 'foo'}
+    assert get_users.cache.cache == {'user:1': (b'boo', 42),
+                                     'user:2': (b'foo', 100)}

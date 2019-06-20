@@ -1,7 +1,7 @@
 from functools import wraps
 
-from .base import make_key_func, get_serializer, get_expire
-from .compat import listitems
+from .base import make_key_func, get_serializer, get_expire, _Expire
+from .compat import listitems, iteritems
 
 
 class CacheWrapper(object):
@@ -17,7 +17,11 @@ class CacheWrapper(object):
         result = self.cache.get(k)
         if result is None:
             result = self.func(*args, **kwargs)
-            self.cache.set(k, self.dumps(result), self.ttl)
+            if type(result) is _Expire:
+                result, ttl = result
+            else:
+                ttl = self.ttl
+            self.cache.set(k, self.dumps(result), ttl)
             return result
         else:
             return self.loads(result)
@@ -35,6 +39,22 @@ class CacheWrapper(object):
     def invalidate(self, *args, **kwargs):
         key = self.keyfunc(*args, **kwargs)
         self.cache.delete(key)
+
+
+def agg_expire(result, default_ttl):
+    dttl = {k: v for k, v in iteritems(result) if type(v) is not _Expire}
+    if len(dttl) == len(result):  # fast path, there are no values with custom ttl
+        return {default_ttl: result}
+
+    ttls = {}
+    for k, v in iteritems(result):
+        if type(v) is _Expire:
+            ttls.setdefault(v[1], {})[k] = v[0]
+
+    if dttl:
+        ttls[default_ttl] = dttl
+
+    return ttls
 
 
 class ObjectsCacheWrapper(CacheWrapper):
@@ -56,11 +76,13 @@ class ObjectsCacheWrapper(CacheWrapper):
         if ids_to_fetch:
             fresult = self.func(ids_to_fetch, *args, **kwargs)
             if fresult:
-                to_cache_pairs = listitems(fresult)
-                to_cache_ids, to_cache_values = zip(*to_cache_pairs)
-                self.cache.mset(zip(self.keyfunc(to_cache_ids, *args, **kwargs),
-                                    [dumps(r) for r in to_cache_values]), self.ttl)
-            cresult.update(fresult)
+                agg_result = iteritems(agg_expire(fresult, self.ttl))
+                for ttl, result in agg_result:
+                    to_cache_ids, to_cache_values = zip(*iteritems(result))
+                    keys = self.keyfunc(to_cache_ids, *args, **kwargs)
+                    values = [dumps(it) for it in to_cache_values]
+                    self.cache.mset(zip(keys, values), ttl)
+                    cresult.update(result)
 
         return cresult
 

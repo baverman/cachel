@@ -139,6 +139,13 @@ class NullCache(BaseCache):
     def delete(self, key): pass
 
 
+class _Expire(tuple): pass
+
+
+def expire(value, ttl):
+    return _Expire((value, ttl))
+
+
 def wrap_in(wrapper):
     def decorator(func):
         @wraps(func)
