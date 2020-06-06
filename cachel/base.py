@@ -11,7 +11,7 @@ except ImportError:  # pragma: no cover py2
 
 import msgpack
 
-from .compat import iteritems, ASYNC, utype
+from .compat import iteritems, ASYNC_AWAIT, utype
 
 idfunc = lambda v: v
 
@@ -180,5 +180,5 @@ def wrap_dict_value_in(wrapper):
     return decorator
 
 
-if ASYNC:  # pragma: no cover
+if ASYNC_AWAIT:  # pragma: no cover
     from ._async_base import *

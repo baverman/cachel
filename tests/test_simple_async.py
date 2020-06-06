@@ -1,4 +1,4 @@
 from cachel import compat
 
-if compat.ASYNC:
+if compat.ASYNC_AWAIT:
     from ._test_simple_async import *

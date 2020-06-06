@@ -4,5 +4,5 @@ from .simple import make_cache
 from .offload import make_offload_cache
 
 from . import compat
-if compat.ASYNC:  # pragma: no cover
+if compat.ASYNC_AWAIT:  # pragma: no cover
     from .base import AsyncBaseCache

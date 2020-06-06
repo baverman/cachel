@@ -1,5 +1,3 @@
 [run]
 source = cachel
 omit = cachel/uwsgi.py
-       cachel/wrappers/gen.py
-       cachel/wrappers/template.py

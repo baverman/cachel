@@ -2,39 +2,41 @@ from cachel.compat import iteritems
 from cachel.base import _Expire
 from cachel.wrappers import BaseCacheWrapper, agg_expire
 
+__await__cache = __await__fn = __await__call = __async__call = __async__cache = None
+
 
 class CacheWrapper(BaseCacheWrapper):
-    async def __call__(self, *args, **kwargs):
+    def __call__(__async__call, self, *args, **kwargs):
         k = self.keyfunc(*args, **kwargs)
-        result = await self.cache.get(k)
+        result = __await__cache(self.cache.get(k))
         if result is None:
-            result = await self.func(*args, **kwargs)
+            result = __await__fn(self.func(*args, **kwargs))
             if type(result) is _Expire:
                 result, ttl = result
             else:
                 ttl = self.ttl
-            await self.cache.set(k, self.dumps(result), ttl)
+            __await__cache(self.cache.set(k, self.dumps(result), ttl))
             return result
         else:
             return self.loads(result)
 
-    async def get(self, *args, **kwargs):
+    def get(__async__cache, self, *args, **kwargs):
         k = self.keyfunc(*args, **kwargs)
-        result = await self.cache.get(k)
+        result = __await__cache(self.cache.get(k))
         if result:
             return self.loads(result)
 
-    async def set(self, value, *args, **kwargs):
+    def set(__async__cache, self, value, *args, **kwargs):
         k = self.keyfunc(*args, **kwargs)
-        await self.cache.set(k, self.dumps(value), self.ttl)
+        __await__cache(self.cache.set(k, self.dumps(value), self.ttl))
 
-    async def invalidate(self, *args, **kwargs):
+    def invalidate(__async__cache, self, *args, **kwargs):
         key = self.keyfunc(*args, **kwargs)
-        await self.cache.delete(key)
+        __await__cache(self.cache.delete(key))
 
 
 class ObjectsCacheWrapper(CacheWrapper):
-    async def __call__(self, ids, *args, **kwargs):
+    def __call__(__async__call, self, ids, *args, **kwargs):
         if not isinstance(ids, (list, tuple)):
             ids = list(ids)
 
@@ -44,28 +46,28 @@ class ObjectsCacheWrapper(CacheWrapper):
         keys = self.keyfunc(ids, *args, **kwargs)
         cresult = {}
         if keys:
-            for oid, value in zip(ids, await self.cache.mget(keys)):
+            for oid, value in zip(ids, __await__cache(self.cache.mget(keys))):
                 if value is not None:
                     cresult[oid] = loads(value)
 
         ids_to_fetch = set(ids) - set(cresult)
         if ids_to_fetch:
-            fresult = await self.func(ids_to_fetch, *args, **kwargs)
+            fresult = __await__fn(self.func(ids_to_fetch, *args, **kwargs))
             if fresult:
                 agg_result = iteritems(agg_expire(fresult, self.ttl))
                 for ttl, result in agg_result:
                     to_cache_ids, to_cache_values = zip(*iteritems(result))
                     keys = self.keyfunc(to_cache_ids, *args, **kwargs)
                     values = [dumps(it) for it in to_cache_values]
-                    await self.cache.mset(zip(keys, values), ttl)
+                    __await__cache(self.cache.mset(zip(keys, values), ttl))
                     cresult.update(result)
 
         return cresult
 
-    async def invalidate(self, ids, *args, **kwargs):
+    def invalidate(__async__cache, self, ids, *args, **kwargs):
         keys = self.keyfunc(ids, *args, **kwargs)
-        await self.cache.mdelete(keys)
+        __await__cache(self.cache.mdelete(keys))
 
-    async def one(self, id, *args, **kwargs):
+    def one(__async__call, self, id, *args, **kwargs):
         default = kwargs.pop('_default', None)
-        return (await self([id], *args, **kwargs)).get(id, default)
+        return __await__call(self([id], *args, **kwargs)).get(id, default)

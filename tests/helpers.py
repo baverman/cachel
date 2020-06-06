@@ -19,5 +19,5 @@ class Cache(BaseCache):
         self.cache.pop(key, None)
 
 
-if compat.ASYNC:
+if compat.ASYNC_AWAIT:
     from ._async_helpers import AsyncCache

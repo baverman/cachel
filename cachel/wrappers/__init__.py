@@ -1,13 +1,6 @@
-import sys
 from cachel.compat import iteritems
 from cachel.base import _Expire
-
-WRAPPER_NAMES = {
-    (False, False): 'cachel.wrappers.full_sync',
-    (True, False): 'cachel.wrappers.async_fn',
-    (False, True): 'cachel.wrappers.async_cache',
-    (True, True): 'cachel.wrappers.full_async',
-}
+from cachel.ast_transformer import execute
 
 
 class BaseCacheWrapper(object):
@@ -36,6 +29,5 @@ def agg_expire(result, default_ttl):
 
 
 def load_wrappers(async_fn, async_cache):
-    mname = WRAPPER_NAMES[(async_fn, async_cache)]
-    __import__(mname)
-    return sys.modules[mname]
+    params = ('fn', async_fn), ('cache', async_cache), ('call', async_cache or async_fn)
+    return execute('cachel.wrappers.wrappers_t', params)
