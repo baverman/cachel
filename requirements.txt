@@ -1,4 +1,4 @@
 msgpack==0.6.1
-redis==2.10.5
+redis==4.5.3
 pytest==4.6.3
 pytest-cov==2.7.1
